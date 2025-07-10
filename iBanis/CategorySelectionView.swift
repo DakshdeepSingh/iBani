@@ -29,17 +29,15 @@ struct CategorySelectionView: View {
                     NavigationLink(destination: BaniSelectionView(selectedCategory: category)) {
                         Text(category.rawValue)
                             .font(.body)
-                            .foregroundColor(.black)
+                            .foregroundColor(.primary)
                             .padding(.vertical, 8)
                     }
-                    .listRowBackground(Color.white)
+                    .listRowBackground(Color(UIColor.systemBackground))
                 }
-
-
             }
             .listStyle(.plain)
             .navigationTitle("iBanis")
-            .navigationBarTitleDisplayMode(.large) // ✅ Large title
+            .navigationBarTitleDisplayMode(.large)
         }
         .tint(appSettings.tintColor)
     }

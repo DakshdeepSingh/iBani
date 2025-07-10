@@ -23,6 +23,15 @@ struct SettingsView: View {
                         .font(.caption)
                     Slider(value: $fontSize, in: 18...36, step: 1)
                         .tint(.blue)
+                    Text("ੳਅੲ")
+                        .font(.system(size: CGFloat(fontSize)))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.blue, lineWidth: 1)
+                        )
+                        .padding(.top, 8)
                 }
                 .onAppear {
                     appSettings.setTintColor(.white)
