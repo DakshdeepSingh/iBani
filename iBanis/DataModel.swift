@@ -374,7 +374,7 @@ class Banis {
 class BaniDataModel: ObservableObject {
     static let shared = BaniDataModel()
     private init() {}
-
+    
     @Published var currentBani: Bani?
     @Published var isLoading = false
 
@@ -408,10 +408,10 @@ class BaniDataModel: ObservableObject {
             print("❌ Invalid Bani ID or URL")
             return
         }
-
+        
         isLoading = true
         print("🌐 Fetching from URL: \(url.absoluteString)")
-
+        
         let session = URLSession(configuration: .default)
         session.dataTask(with: url) { data, _, error in
             DispatchQueue.main.async { self.isLoading = false }
@@ -448,9 +448,9 @@ class BaniDataModel: ObservableObject {
             print("✅ Banis already preloaded.")
             return
         }
-
+        
         print("🚀 Preloading all Banis...")
-
+        
         for type in BaniType.allCases {
             // Skip Sarbloh Granth since it's a local PDF, not fetched from API
             guard type != .sarblohGranth else {
@@ -477,7 +477,7 @@ class BaniDataModel: ObservableObject {
                 }
             }.resume()
         }
-
+        
         // Mark as preloaded
         defaults.set(true, forKey: "hasPreloadedBanis")
     }
