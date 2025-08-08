@@ -14,13 +14,14 @@ struct BaniView: View {
     @EnvironmentObject var appSettings: AppSettings
 
     @AppStorage("showTranslation") private var showTranslation = true
-    @AppStorage("fontSize") private var fontSize: Double = 22
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 10) {
                 ScrollView {
                     content
+                        .padding(.horizontal, appSettings.isPad ? 40 : 16)
+                        .padding(.vertical, 10)
                 }
             }
             .navigationTitle(baniType.displayTitle)
@@ -51,7 +52,7 @@ struct BaniView: View {
                     ForEach(bani.lines) { line in
                         if !line.line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             VStack(spacing: 6) {
-                                HighlightedText(line: line.line, fontSize: fontSize)
+                                HighlightedText(line: line.line, fontSize: appSettings.fontSize)
                                     .multilineTextAlignment(.center)
 
                                 if showTranslation,
@@ -68,8 +69,6 @@ struct BaniView: View {
                         }
                     }
                 }
-                .padding(.vertical, 10)
-                .padding(.horizontal)
             } else if let error = modelError {
                 Text(error)
                     .foregroundColor(.red)
@@ -91,7 +90,7 @@ struct BaniView: View {
 
 struct HighlightedText: View {
     let line: String
-    let fontSize: Double
+    let fontSize: CGFloat
 
     var body: some View {
         Text(makeAttributedString(from: line))
@@ -130,5 +129,8 @@ struct HighlightedText: View {
 }
 
 #Preview {
-    BaniView(baniType: .japjiSahib)
+    NavigationStack {
+        BaniView(baniType: .japjiSahib)
+            .environmentObject(AppSettings())
+    }
 }

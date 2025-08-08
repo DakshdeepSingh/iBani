@@ -12,10 +12,15 @@ import Combine
 // MARK: - Bani Categories
 
 enum BaniCategory: String, CaseIterable {
+//    case guruGranth = "ਗੁਰੂ ਗ੍ਰੰਥ ਸਾਹਿਬ ਜੀ"
+//    case dasamGranth = "ਦਸਮ ਗ੍ਰੰਥ"
+//    case sarbloh = "ਸਰਬਲੋਹ ਗ੍ਰੰਥ "
+    case sarvGranth = "ਸਰਵ ਗ੍ਰੰਥ"
     case nitnem = "ਨਿਤਨੇਮ"
-    case dasam = "ਦਸਮੀ ਟਕਸਾਲ"
-    case raag = "ਰਾਗੀ ਬਾਣੀ"
+    case dasam = "ਦਸਮ ਦਰਬਾਰ"
+    case raag = "ਰਾਗ ਦਰਬਾਰ"
     //case others = " "
+    var id: String { rawValue }
 }
 
 // MARK: - API-Level BaniLine Model (for decoding from banidb)
@@ -118,6 +123,9 @@ enum BaniType: String, CaseIterable, Identifiable, Codable {
     case japjiSahib, jaapSahib, tavPrasadSavaiye, chaupaiSahib, anandSahib, rehrasSahib, kirtanSohila, sukhmaniSahib
     case shabadHazareP10, svaiyeDeenan, chandiDiVaar, ardaas, aarti
     case asaDiVaar, dakhniOankar, sidhGosht, bavanAkhree, jaitsreeVaar, ramkaliVaar, basantVaar, baarehMaahaTukhari, salokMahalla9, raagmala
+    case guruGranthSahibJi,dasamGranth,sarblohGranth
+//    case guruGranthSahibJi
+//    case dasamGranth
     //case unknown
 
     var id: String { rawValue }
@@ -165,7 +173,7 @@ enum BaniType: String, CaseIterable, Identifiable, Codable {
         case .svaiyeDeenan: return "ਸਵੈਯੇ ਦੀਨਨ ਕੇ"
         case .chandiDiVaar: return "ਚੰਡੀ ਦੀ ਵਾਰ"
         case .ardaas: return "ਅਰਦਾਸ"
-        case .aarti: return "ਆਰਤੀ"
+        case .aarti: return "ਆਰਤੀ-ਆਰਤਾ"
         case .asaDiVaar: return "ਆਸਾ ਦੀ ਵਾਰ"
         case .dakhniOankar: return "ਦਖਣੀ ਓਅੰਕਾਰ"
         case .sidhGosht: return "ਸਿਧ ਗੋਸਟ"
@@ -176,6 +184,10 @@ enum BaniType: String, CaseIterable, Identifiable, Codable {
         case .baarehMaahaTukhari: return "ਬਾਰਹ ਮਾਹਾ ਤੁਖਾਰੀ"
         case .salokMahalla9: return "ਸਲੋਕ ਮਹਲਾ ੯"
         case .raagmala: return "ਰਾਗਮਾਲਾ"
+        case .sarblohGranth: return"ਸਰਬਲੋਹ ਗ੍ਰੰਥ ਜੀ"
+        case .guruGranthSahibJi: return "ਗੁਰੂ ਗ੍ਰੰਥ ਸਾਹਿਬ ਜੀ"
+        case .dasamGranth: return "ਦਸਮ ਗ੍ਰੰਥ ਸਾਹਿਬ ਜੀ"
+        
         default: return " "
         }
     }
@@ -188,6 +200,8 @@ enum BaniType: String, CaseIterable, Identifiable, Codable {
             return .dasam
         case .asaDiVaar, .dakhniOankar, .sidhGosht, .bavanAkhree, .jaitsreeVaar, .ramkaliVaar, .basantVaar, .baarehMaahaTukhari, .salokMahalla9, .raagmala:
             return .raag
+        case .guruGranthSahibJi, .dasamGranth, .sarblohGranth:
+            return .sarvGranth
 //        default:
 //            return .others
         }
@@ -272,26 +286,30 @@ class Banis {
 class BaniDataModel: ObservableObject {
     static let shared = BaniDataModel()
     private init() {}
-
+    
     @Published var currentBani: Bani?
     @Published var isLoading = false
-
+    
     func fetchBani(for type: BaniType) {
+        guard type != .sarblohGranth else {
+            print("📄 Sarbloh Granth is a bundled PDF, skipping fetch.")
+            return
+        }
         if let bani = Banis.shared.getBani(withType: type) {
             isLoading = true
             self.currentBani = bani
             return
         }
-
+        
         let id = type.numericID
         guard id > 0, let url = URL(string: "https://api.banidb.com/v2/banis/\(id)?script=unicode") else {
             print("❌ Invalid Bani ID or URL")
             return
         }
-
+        
         isLoading = true
         print("🌐 Fetching from URL: \(url.absoluteString)")
-
+        
         let session = URLSession(configuration: .default)
         session.dataTask(with: url) { data, _, error in
             DispatchQueue.main.async { self.isLoading = false }
@@ -321,16 +339,22 @@ class BaniDataModel: ObservableObject {
             print("✅ Banis already preloaded.")
             return
         }
-
+        
         print("🚀 Preloading all Banis...")
-
+        
         for type in BaniType.allCases {
+            // ✅ Skip Sarbloh Granth since it's a local PDF, not fetched from API
+            guard type != .sarblohGranth else {
+                print("📄 Skipping Sarbloh Granth – handled as bundled PDF.")
+                continue
+            }
+            
             let id = type.numericID
             guard id > 0,
                   let url = URL(string: "https://api.banidb.com/v2/banis/\(id)?script=unicode") else {
                 continue
             }
-
+            
             URLSession.shared.dataTask(with: url) { data, _, error in
                 if let data = data {
                     do {
@@ -347,8 +371,14 @@ class BaniDataModel: ObservableObject {
                 }
             }.resume()
         }
-
+        
         // Mark as preloaded
         defaults.set(true, forKey: "hasPreloadedBanis")
     }
 }
+
+// MARK: - Function to Load PDF
+func loadBundledPDF(named name: String) -> URL? {
+    Bundle.main.url(forResource: name, withExtension: "pdf")
+}
+

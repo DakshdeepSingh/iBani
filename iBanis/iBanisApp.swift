@@ -10,14 +10,18 @@ import SwiftUI
 @main
 struct iBanisApp: App {
     @StateObject private var appSettings = AppSettings()
-    
+
     init() {
+        // Preload all banis from local cache
         BaniDataModel.shared.preloadAllBanis()
     }
+
     var body: some Scene {
         WindowGroup {
-            CategorySelectionView()
-                .environmentObject(appSettings)
+            NavigationStack {
+                CategorySelectionView()
+            }
+            .environmentObject(appSettings)
         }
     }
 }

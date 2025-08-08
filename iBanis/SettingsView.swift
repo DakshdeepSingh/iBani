@@ -12,29 +12,39 @@ struct SettingsView: View {
     @AppStorage("fontSize") private var fontSize: Double = 22
     @EnvironmentObject var appSettings: AppSettings
 
+    var isPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+
     var body: some View {
         Form {
             Section(header: Text("Display")) {
                 Toggle("Show Translation", isOn: $showTranslation)
                     .tint(.green)
 
-                VStack(alignment: .leading) {
+                VStack(alignment: .leading, spacing: 10) {
                     Text("Font Size: \(Int(fontSize))")
                         .font(.caption)
+
                     Slider(value: $fontSize, in: 18...36, step: 1)
                         .tint(.blue)
+
                     Text("ੳਅੲ")
-                        .font(.system(size: CGFloat(fontSize)))
+                        .font(.custom("GurbaniAkharHeavy", size: CGFloat(fontSize)))
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(8)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
                                 .stroke(Color.blue, lineWidth: 1)
                         )
-                        .padding(.top, 8)
+                        .padding(.top, 4)
                 }
+                .padding(.horizontal, isPad ? 24 : 0)
                 .onAppear {
                     appSettings.setTintColor(.white)
+                }
+                .onChange(of: fontSize) { newValue in
+                    appSettings.fontSize = CGFloat(newValue)
                 }
             }
 
@@ -54,5 +64,8 @@ struct SettingsView: View {
 }
 
 #Preview {
-    SettingsView()
+    NavigationStack {
+        SettingsView()
+            .environmentObject(AppSettings())
+    }
 }
