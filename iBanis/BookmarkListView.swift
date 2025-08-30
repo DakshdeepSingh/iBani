@@ -13,7 +13,7 @@ struct Bookmark: Codable, Identifiable {
     let id: UUID
     let pageNumber: Int
     var title: String
-    var granthTitle: String   // ✅ NEW FIELD
+    var granthTitle: String
     let dateCreated: Date
 
     init(pageNumber: Int, title: String = "", granthTitle: String = "") {

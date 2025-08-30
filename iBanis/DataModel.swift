@@ -4,7 +4,6 @@
 //
 //  Created by Brahmjot Singh Tatla on 25/03/25.
 //
-//
 
 import Foundation
 import Combine
@@ -23,18 +22,74 @@ enum BaniCategory: String, CaseIterable {
     var id: String { rawValue }
 }
 
+// MARK: - Helpers for dynamic keys / flexible provider decoding
+
+/// Dynamic CodingKey for unknown keys
+private struct AnyKey: CodingKey {
+    var stringValue: String; init?(stringValue: String) { self.stringValue = stringValue }
+    var intValue: Int? { nil }; init?(intValue: Int) { return nil }
+}
+
+/// Decodes a provider value that could be a String, an object with {text: "..."} or {translation: "..."} or {value: "..."},
+/// or an array of such entries. We extract a single best string.
+private struct ProviderValue: Codable {
+    let best: String?
+
+    init(from decoder: Decoder) throws {
+        // 1) Try a direct string
+        if let sv = try? decoder.singleValueContainer(), let s = try? sv.decode(String.self) {
+            best = s
+            return
+        }
+        // 2) Try object { text: ... } / { translation: ... } / { value: ... }
+        if let obj = try? decoder.container(keyedBy: AnyKey.self) {
+            if let tKey = AnyKey(stringValue: "text"), let t = try? obj.decode(String.self, forKey: tKey) { best = t; return }
+            if let trKey = AnyKey(stringValue: "translation"), let tr = try? obj.decode(String.self, forKey: trKey) { best = tr; return }
+            if let vKey = AnyKey(stringValue: "value"), let v = try? obj.decode(String.self, forKey: vKey) { best = v; return }
+            best = nil
+            return
+        }
+        // 3) Try an array of mixed entries and take the first successful text
+        if var arr = try? decoder.unkeyedContainer() {
+            var first: String? = nil
+            while !arr.isAtEnd {
+                if let pv = try? arr.decode(ProviderValue.self), let b = pv.best, !b.isEmpty { first = b; break }
+                _ = try? arr.decode(Dummy.self) // skip unknown item
+            }
+            best = first
+            return
+        }
+        // Fallback
+        best = nil
+    }
+    private struct Dummy: Codable {}
+}
+
+private extension KeyedDecodingContainer where K == AnyKey {
+    /// Finds the first decodable ProviderValue with a non-empty best string.
+    func firstProviderBest() -> String? {
+        for key in allKeys {
+            if let pv = try? decode(ProviderValue.self, forKey: key), let s = pv.best, !s.isEmpty {
+                return s
+            }
+        }
+        return nil
+    }
+}
+
 // MARK: - API-Level BaniLine Model (for decoding from banidb)
 
 struct BaniLine: Identifiable, Codable {
     let id: Int
     let line: String
-    let translation: String?
+    let translation: String?          // English translation (if available)
+    let hindiTranslation: String?     // Hindi translation or Devanagari transliteration fallback
 
     enum RootKeys: String, CodingKey { case verse }
-    enum VerseLevel1Keys: String, CodingKey { case verseId, verse, translation }
+    enum VerseLevel1Keys: String, CodingKey { case verseId, verse, translation, transliteration, transliterations }
     enum InnerVerseKeys: String, CodingKey { case gurmukhi }
-    enum TranslationKeys: String, CodingKey { case en }
-    enum EnglishTranslationKeys: String, CodingKey { case bdb }
+    enum TranslationKeys: String, CodingKey { case en, hi, hindi }
+    enum TransliterationKeys: String, CodingKey { case hi, hindi }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: RootKeys.self)
@@ -43,18 +98,57 @@ struct BaniLine: Identifiable, Codable {
         let inner = try verseContainer.nestedContainer(keyedBy: InnerVerseKeys.self, forKey: .verse)
         line = try inner.decode(String.self, forKey: .gurmukhi)
 
-        if let translationContainer = try? verseContainer.nestedContainer(keyedBy: TranslationKeys.self, forKey: .translation),
-           let englishContainer = try? translationContainer.nestedContainer(keyedBy: EnglishTranslationKeys.self, forKey: .en) {
-            translation = try? englishContainer.decode(String.self, forKey: .bdb)
-        } else {
-            translation = nil
+        // --- English translation ---
+        var english: String? = nil
+        if let t = try? verseContainer.nestedContainer(keyedBy: TranslationKeys.self, forKey: .translation) {
+            if let enDict = try? t.decode([String: ProviderValue].self, forKey: .en) {
+                english = enDict.values.compactMap { $0.best }.first
+            } else if let enNest = try? t.nestedContainer(keyedBy: AnyKey.self, forKey: .en) {
+                english = enNest.firstProviderBest()
+            }
         }
+        self.translation = english
+
+        // --- Hindi translation (preferred) ---
+        var hindi: String? = nil
+        if let t = try? verseContainer.nestedContainer(keyedBy: TranslationKeys.self, forKey: .translation) {
+            if let hiDict = try? t.decode([String: ProviderValue].self, forKey: .hi) {
+                hindi = hiDict.values.compactMap { $0.best }.first
+            } else if let hiNest = try? t.nestedContainer(keyedBy: AnyKey.self, forKey: .hi) {
+                hindi = hiNest.firstProviderBest()
+            } else if let hindiDict = try? t.decode([String: ProviderValue].self, forKey: .hindi) {
+                hindi = hindiDict.values.compactMap { $0.best }.first
+            } else if let hindiNest = try? t.nestedContainer(keyedBy: AnyKey.self, forKey: .hindi) {
+                hindi = hindiNest.firstProviderBest()
+            }
+        }
+
+        // --- Fallback: Hindi *transliteration* (Devanagari) ---
+        if (hindi == nil || hindi?.isEmpty == true) {
+            // Some responses use a single field `transliteration` or a dict `transliterations`
+            if let singleTL = try? verseContainer.decode(String.self, forKey: .transliteration), !singleTL.isEmpty {
+                hindi = singleTL
+            } else if let tl = try? verseContainer.nestedContainer(keyedBy: TransliterationKeys.self, forKey: .transliterations) {
+                if let hi = try? tl.decode(String.self, forKey: .hi), !hi.isEmpty {
+                    hindi = hi
+                } else if let hindiStr = try? tl.decode(String.self, forKey: .hindi), !hindiStr.isEmpty {
+                    hindi = hindiStr
+                } else if let any = try? verseContainer.nestedContainer(keyedBy: AnyKey.self, forKey: .transliterations) {
+                    hindi = any.firstProviderBest()
+                }
+            } else if let any = try? verseContainer.nestedContainer(keyedBy: AnyKey.self, forKey: .transliteration) {
+                hindi = any.firstProviderBest()
+            }
+        }
+
+        self.hindiTranslation = hindi
     }
 
-    init(id: Int, line: String, translation: String?) {
+    init(id: Int, line: String, translation: String?, hindiTranslation: String?) {
         self.id = id
         self.line = line
         self.translation = translation
+        self.hindiTranslation = hindiTranslation
     }
 }
 
@@ -75,14 +169,14 @@ struct Bani: Codable {
         case gurmukhi
         case gurmukhiUni
     }
-    
+
     func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            var info = container.nestedContainer(keyedBy: BaniInfoKeys.self, forKey: .baniInfo)
-            try info.encode(id, forKey: .id)
-            try info.encode(name, forKey: .gurmukhiUni)
-            try container.encode(lines, forKey: .verses)
-        }
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        var info = container.nestedContainer(keyedBy: BaniInfoKeys.self, forKey: .baniInfo)
+        try info.encode(id, forKey: .id)
+        try info.encode(name, forKey: .gurmukhiUni)
+        try container.encode(lines, forKey: .verses)
+    }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -109,6 +203,7 @@ struct SimpleBaniLine: Codable {
     let id: Int
     let line: String
     let translation: String?
+    let hindiTranslation: String?
 }
 
 struct SimpleBani: Codable {
@@ -123,10 +218,7 @@ enum BaniType: String, CaseIterable, Identifiable, Codable {
     case japjiSahib, jaapSahib, tavPrasadSavaiye, chaupaiSahib, anandSahib, rehrasSahib, kirtanSohila, sukhmaniSahib
     case shabadHazareP10, svaiyeDeenan, chandiDiVaar, ardaas, aarti
     case asaDiVaar, dakhniOankar, sidhGosht, bavanAkhree, jaitsreeVaar, ramkaliVaar, basantVaar, baarehMaahaTukhari, salokMahalla9, raagmala
-    case guruGranthSahibJi,dasamGranth,sarblohGranth
-//    case guruGranthSahibJi
-//    case dasamGranth
-    //case unknown
+    case guruGranthSahibJi, dasamGranth, sarblohGranth
 
     var id: String { rawValue }
 
@@ -184,10 +276,9 @@ enum BaniType: String, CaseIterable, Identifiable, Codable {
         case .baarehMaahaTukhari: return "ਬਾਰਹ ਮਾਹਾ ਤੁਖਾਰੀ"
         case .salokMahalla9: return "ਸਲੋਕ ਮਹਲਾ ੯"
         case .raagmala: return "ਰਾਗਮਾਲਾ"
-        case .sarblohGranth: return"ਸਰਬਲੋਹ ਗ੍ਰੰਥ ਜੀ"
+        case .sarblohGranth: return "ਸਰਬਲੋਹ ਗ੍ਰੰਥ ਜੀ"
         case .guruGranthSahibJi: return "ਗੁਰੂ ਗ੍ਰੰਥ ਸਾਹਿਬ ਜੀ"
         case .dasamGranth: return "ਦਸਮ ਗ੍ਰੰਥ ਸਾਹਿਬ ਜੀ"
-        
         default: return " "
         }
     }
@@ -202,14 +293,11 @@ enum BaniType: String, CaseIterable, Identifiable, Codable {
             return .raag
         case .guruGranthSahibJi, .dasamGranth, .sarblohGranth:
             return .sarvGranth
-//        default:
-//            return .others
         }
     }
 }
 
-
-// MARK: - Banis ViewModel
+// MARK: - Banis Cache (on-disk)
 
 class Banis {
     private var banis: [BaniType: Bani] = [:]
@@ -237,7 +325,7 @@ class Banis {
             SimpleBani(
                 id: bani.id,
                 name: bani.name,
-                lines: bani.lines.map { SimpleBaniLine(id: $0.id, line: $0.line, translation: $0.translation) }
+                lines: bani.lines.map { SimpleBaniLine(id: $0.id, line: $0.line, translation: $0.translation, hindiTranslation: $0.hindiTranslation) }
             )
         }
         do {
@@ -259,7 +347,7 @@ class Banis {
             let data = try Data(contentsOf: fileURL)
             let simpleBanis = try JSONDecoder().decode([BaniType: SimpleBani].self, from: data)
             self.banis = simpleBanis.mapValues { simple in
-                let lines = simple.lines.map { BaniLine(id: $0.id, line: $0.line, translation: $0.translation) }
+                let lines = simple.lines.map { BaniLine(id: $0.id, line: $0.line, translation: $0.translation, hindiTranslation: $0.hindiTranslation) }
                 return Bani(id: simple.id, name: simple.name, lines: lines)
             }
             print("✅ Banis loaded from disk.")
@@ -286,30 +374,44 @@ class Banis {
 class BaniDataModel: ObservableObject {
     static let shared = BaniDataModel()
     private init() {}
-    
+
     @Published var currentBani: Bani?
     @Published var isLoading = false
-    
+
+    private func makeURL(for id: Int) -> URL? {
+        // Ask for both translations and transliteration (Devanagari) as fallback
+        return URL(string: "https://api.banidb.com/v2/banis/\(id)?script=unicode&translation=en,hi&transliteration=hi")
+    }
+
     func fetchBani(for type: BaniType) {
+        // Sarbloh Granth is handled as a bundled PDF
         guard type != .sarblohGranth else {
             print("📄 Sarbloh Granth is a bundled PDF, skipping fetch.")
             return
         }
+
+        // Try cache first
         if let bani = Banis.shared.getBani(withType: type) {
-            isLoading = true
-            self.currentBani = bani
-            return
+            let wantsHindi = UserDefaults.standard.bool(forKey: "showHindiTranslation")
+            let hasAnyHindi = bani.lines.contains { $0.hindiTranslation?.isEmpty == false }
+            if wantsHindi && !hasAnyHindi {
+                print("↻ Cached bani missing Hindi; refetching from API…")
+            } else {
+                isLoading = false
+                self.currentBani = bani
+                return
+            }
         }
-        
+
         let id = type.numericID
-        guard id > 0, let url = URL(string: "https://api.banidb.com/v2/banis/\(id)?script=unicode") else {
+        guard id > 0, let url = makeURL(for: id) else {
             print("❌ Invalid Bani ID or URL")
             return
         }
-        
+
         isLoading = true
         print("🌐 Fetching from URL: \(url.absoluteString)")
-        
+
         let session = URLSession(configuration: .default)
         session.dataTask(with: url) { data, _, error in
             DispatchQueue.main.async { self.isLoading = false }
@@ -319,6 +421,12 @@ class BaniDataModel: ObservableObject {
                     DispatchQueue.main.async {
                         self.currentBani = bani
                         Banis.shared.addBani(bani, withType: type)
+                        // Debug hint if Hindi (translation) missing when user wants it
+                        let wantsHindi = UserDefaults.standard.bool(forKey: "showHindiTranslation")
+                        let hasHindi = bani.lines.contains { ($0.hindiTranslation?.isEmpty == false) }
+                        if wantsHindi && !hasHindi {
+                            print("ℹ️ No Hindi *translation* found in API; showing Devanagari transliteration if available.")
+                        }
                     }
                 } catch {
                     print("❌ Decoding error:", error)
@@ -331,30 +439,28 @@ class BaniDataModel: ObservableObject {
             }
         }.resume()
     }
+
     func preloadAllBanis() {
         let defaults = UserDefaults.standard
         let hasPreloaded = defaults.bool(forKey: "hasPreloadedBanis")
-        
+
         guard !hasPreloaded else {
             print("✅ Banis already preloaded.")
             return
         }
-        
+
         print("🚀 Preloading all Banis...")
-        
+
         for type in BaniType.allCases {
-            // ✅ Skip Sarbloh Granth since it's a local PDF, not fetched from API
+            // Skip Sarbloh Granth since it's a local PDF, not fetched from API
             guard type != .sarblohGranth else {
                 print("📄 Skipping Sarbloh Granth – handled as bundled PDF.")
                 continue
             }
-            
+
             let id = type.numericID
-            guard id > 0,
-                  let url = URL(string: "https://api.banidb.com/v2/banis/\(id)?script=unicode") else {
-                continue
-            }
-            
+            guard id > 0, let url = makeURL(for: id) else { continue }
+
             URLSession.shared.dataTask(with: url) { data, _, error in
                 if let data = data {
                     do {
@@ -371,14 +477,14 @@ class BaniDataModel: ObservableObject {
                 }
             }.resume()
         }
-        
+
         // Mark as preloaded
         defaults.set(true, forKey: "hasPreloadedBanis")
     }
 }
 
 // MARK: - Function to Load PDF
+
 func loadBundledPDF(named name: String) -> URL? {
     Bundle.main.url(forResource: name, withExtension: "pdf")
 }
-

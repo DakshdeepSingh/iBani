@@ -14,6 +14,8 @@ struct BaniView: View {
     @EnvironmentObject var appSettings: AppSettings
 
     @AppStorage("showTranslation") private var showTranslation = true
+    @AppStorage("showEnglishTranslation") private var showEnglishTranslation = true
+    @AppStorage("showHindiTranslation") private var showHindiTranslation = false
 
     var body: some View {
         NavigationStack {
@@ -55,10 +57,24 @@ struct BaniView: View {
                                 HighlightedText(line: line.line, fontSize: appSettings.fontSize)
                                     .multilineTextAlignment(.center)
 
+                                // English Translation
                                 if showTranslation,
+                                   showEnglishTranslation,
                                    let translation = line.translation,
                                    !translation.isEmpty {
                                     Text(translation)
+                                        .font(.footnote)
+                                        .foregroundColor(.gray)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal)
+                                }
+
+                                // Hindi Translation
+                                if showTranslation,
+                                   showHindiTranslation,
+                                   let hindiText = line.hindiTranslation,
+                                   !hindiText.isEmpty {
+                                    Text(hindiText)
                                         .font(.footnote)
                                         .foregroundColor(.gray)
                                         .multilineTextAlignment(.center)

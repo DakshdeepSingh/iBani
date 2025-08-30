@@ -9,6 +9,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("showTranslation") private var showTranslation = true
+    @AppStorage("showEnglishTranslation") private var showEnglishTranslation = true
+    @AppStorage("showHindiTranslation") private var showHindiTranslation = false
     @AppStorage("fontSize") private var fontSize: Double = 22
     @EnvironmentObject var appSettings: AppSettings
 
@@ -21,6 +23,13 @@ struct SettingsView: View {
             Section(header: Text("Display")) {
                 Toggle("Show Translation", isOn: $showTranslation)
                     .tint(.green)
+
+                Toggle("Show English Translation", isOn: $showEnglishTranslation)
+                    .tint(.green)
+                    .disabled(!showTranslation)
+                Toggle("Show Hindi Translation", isOn: $showHindiTranslation)
+                    .tint(.green)
+                    .disabled(!showTranslation)
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Font Size: \(Int(fontSize))")

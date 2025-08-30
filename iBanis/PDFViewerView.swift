@@ -10,7 +10,7 @@ import PDFKit
 
 struct PDFViewerView: View {
     let pdfURL: URL?
-    let title: String  // ✅ Granth title
+    let title: String
 
     @State private var currentPage: Int = 0
     @State private var isBookmarked: Bool = false
@@ -106,7 +106,7 @@ struct PDFViewerView: View {
                 let bookmark = Bookmark(
                     pageNumber: currentPage,
                     title: newBookmarkTitle.trimmingCharacters(in: .whitespacesAndNewlines),
-                    granthTitle: title  // ✅ Granth name stored here
+                    granthTitle: title
                 )
                 addBookmark(bookmark)
             }

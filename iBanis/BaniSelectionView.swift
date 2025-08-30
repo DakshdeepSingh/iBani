@@ -123,6 +123,6 @@ struct BaniSelectionView: View {
 #Preview {
     NavigationStack {
         BaniSelectionView(selectedCategory: .nitnem)
-            .environmentObject(AppSettings()) // ✅ Prevents preview crash
+            .environmentObject(AppSettings())
     }
 }
