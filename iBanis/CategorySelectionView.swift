@@ -10,17 +10,6 @@ import SwiftUI
 struct CategorySelectionView: View {
     @EnvironmentObject var appSettings: AppSettings
 
-    init() {
-        let appearance = UINavigationBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor.blue
-        appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
-        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
-
-        UINavigationBar.appearance().standardAppearance = appearance
-        UINavigationBar.appearance().scrollEdgeAppearance = appearance
-    }
-
     var body: some View {
         NavigationStack {
             Group {
@@ -49,9 +38,9 @@ struct CategorySelectionView: View {
                     .listStyle(.insetGrouped)
                 }
             }
-            .navigationTitle("iBanis")
-            .navigationBarTitleDisplayMode(.large)
         }
+        .navigationTitle("iBanis")
+        .navigationBarTitleDisplayMode(.large)
         .tint(appSettings.tintColor)
     }
 

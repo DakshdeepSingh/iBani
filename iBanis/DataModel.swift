@@ -1,8 +1,12 @@
 //
-//  DataModel.swift
+//  DataModel.swift — Updated (Hindi translation + Devanagari transliteration fallback)
 //  iBanis
 //
 //  Created by Brahmjot Singh Tatla on 25/03/25.
+//  Updated on 24/08/25:
+//  - Robust decoder for Hindi translations (handles string/object/array providers)
+//  - Falls back to Hindi *transliteration* (Devanagari) when translation is missing
+//  - Requests both: translation=en,hi and transliteration=hi
 //
 
 import Foundation
@@ -374,7 +378,7 @@ class Banis {
 class BaniDataModel: ObservableObject {
     static let shared = BaniDataModel()
     private init() {}
-    
+
     @Published var currentBani: Bani?
     @Published var isLoading = false
 
@@ -408,10 +412,10 @@ class BaniDataModel: ObservableObject {
             print("❌ Invalid Bani ID or URL")
             return
         }
-        
+
         isLoading = true
         print("🌐 Fetching from URL: \(url.absoluteString)")
-        
+
         let session = URLSession(configuration: .default)
         session.dataTask(with: url) { data, _, error in
             DispatchQueue.main.async { self.isLoading = false }
@@ -448,9 +452,9 @@ class BaniDataModel: ObservableObject {
             print("✅ Banis already preloaded.")
             return
         }
-        
+
         print("🚀 Preloading all Banis...")
-        
+
         for type in BaniType.allCases {
             // Skip Sarbloh Granth since it's a local PDF, not fetched from API
             guard type != .sarblohGranth else {
@@ -477,7 +481,7 @@ class BaniDataModel: ObservableObject {
                 }
             }.resume()
         }
-        
+
         // Mark as preloaded
         defaults.set(true, forKey: "hasPreloadedBanis")
     }

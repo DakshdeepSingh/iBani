@@ -32,6 +32,9 @@ struct BookmarkListView: View {
     @State private var editingTitle: String = ""
     @Environment(\.dismiss) private var dismiss
 
+    // The granth whose bookmarks should be shown
+    let granthTitle: String
+
     // Callback to navigate to a specific page
     let onPageSelected: (Int) -> Void
 
@@ -117,23 +120,30 @@ struct BookmarkListView: View {
         }
     }
 
-    private func loadBookmarks() {
+    /// Loads every stored bookmark across all granths.
+    private func loadAllBookmarks() -> [Bookmark] {
         if let data = UserDefaults.standard.data(forKey: "bookmarksWithTitles"),
            let decodedBookmarks = try? JSONDecoder().decode([Bookmark].self, from: data) {
-            bookmarks = decodedBookmarks
-        } else {
-            let oldBookmarks = UserDefaults.standard.array(forKey: "bookmarkedPages") as? [Int] ?? []
-            bookmarks = oldBookmarks.map { Bookmark(pageNumber: $0) }
-            saveBookmarks()
+            return decodedBookmarks
         }
+        return []
+    }
+
+    private func loadBookmarks() {
+        // Only show bookmarks that belong to the granth currently being viewed.
+        bookmarks = loadAllBookmarks().filter { $0.granthTitle == granthTitle }
     }
 
     private func saveBookmarks() {
-        if let encoded = try? JSONEncoder().encode(bookmarks) {
+        // Merge: keep every other granth's bookmarks, replace only this granth's.
+        var allBookmarks = loadAllBookmarks().filter { $0.granthTitle != granthTitle }
+        allBookmarks.append(contentsOf: bookmarks)
+
+        if let encoded = try? JSONEncoder().encode(allBookmarks) {
             UserDefaults.standard.set(encoded, forKey: "bookmarksWithTitles")
         }
 
-        let pageNumbers = bookmarks.map { $0.pageNumber }
+        let pageNumbers = allBookmarks.map { $0.pageNumber }
         UserDefaults.standard.set(pageNumbers, forKey: "bookmarkedPages")
     }
 
@@ -231,7 +241,7 @@ struct BookmarkRowView: View {
         UserDefaults.standard.set(encoded, forKey: "bookmarksWithTitles")
     }
 
-    return BookmarkListView { pageNumber in
+    return BookmarkListView(granthTitle: "ਸਰਬਲੋਹ ਗ੍ਰੰਥ") { pageNumber in
         print("Navigate to page \(pageNumber)")
     }
 }

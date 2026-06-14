@@ -37,7 +37,7 @@ struct BaniSelectionView: View {
                 .navigationTitle(selectedCategory.rawValue)
                 .navigationBarTitleDisplayMode(.inline)
                 .onAppear {
-                    safeAppSettings.setTintColor(.white)
+                    safeAppSettings.setTintColor(.blue)
                 }
                 .tint(safeAppSettings.tintColor)
 

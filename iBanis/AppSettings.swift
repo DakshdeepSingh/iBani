@@ -8,7 +8,7 @@
 import SwiftUI
 
 class AppSettings: ObservableObject {
-    @Published var tintColor: Color = .white
+    @Published var tintColor: Color = .blue
 
     // Auto-adjusted font size based on device type
     @Published var fontSize: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 26 : 22

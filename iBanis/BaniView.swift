@@ -14,35 +14,33 @@ struct BaniView: View {
     @EnvironmentObject var appSettings: AppSettings
 
     @AppStorage("showTranslation") private var showTranslation = true
-    @AppStorage("showEnglishTranslation") private var showEnglishTranslation = true
-    @AppStorage("showHindiTranslation") private var showHindiTranslation = false
+    @AppStorage("showEnglishTranslation") private var showEnglishTranslation = true   // ✅ Added
+//    @AppStorage("showHindiTranslation") private var showHindiTranslation = false      // ✅ Added
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 10) {
-                ScrollView {
-                    content
-                        .padding(.horizontal, appSettings.isPad ? 40 : 16)
-                        .padding(.vertical, 10)
+        VStack(spacing: 10) {
+            ScrollView {
+                content
+                    .padding(.horizontal, appSettings.isPad ? 40 : 16)
+                    .padding(.vertical, 10)
+            }
+        }
+        .navigationTitle(baniType.displayTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                NavigationLink(destination: SettingsView()) {
+                    Image(systemName: "gear")
                 }
             }
-            .navigationTitle(baniType.displayTitle)
-            .toolbarBackground(Color.blue, for: .navigationBar)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink(destination: SettingsView()) {
-                        Image(systemName: "gear")
-                    }
-                }
-            }
-            .onAppear {
-                model.fetchBani(for: baniType)
-                appSettings.setTintColor(.blue)
-            }
-            .onDisappear {
-                BaniDataModel.shared.currentBani = nil
-            }
+        }
+        .onAppear {
+            model.fetchBani(for: baniType)
+            // Inherit nav bar styling and tint from the root (CategorySelectionView)
+            // Do not override tint here.
+        }
+        .onDisappear {
+            BaniDataModel.shared.currentBani = nil
         }
     }
 
@@ -57,7 +55,7 @@ struct BaniView: View {
                                 HighlightedText(line: line.line, fontSize: appSettings.fontSize)
                                     .multilineTextAlignment(.center)
 
-                                // English Translation
+                                // ✅ English Translation
                                 if showTranslation,
                                    showEnglishTranslation,
                                    let translation = line.translation,
@@ -69,17 +67,17 @@ struct BaniView: View {
                                         .padding(.horizontal)
                                 }
 
-                                // Hindi Translation
-                                if showTranslation,
-                                   showHindiTranslation,
-                                   let hindiText = line.hindiTranslation,
-                                   !hindiText.isEmpty {
-                                    Text(hindiText)
-                                        .font(.footnote)
-                                        .foregroundColor(.gray)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal)
-                                }
+                                // ✅ Hindi Translation
+//                                if showTranslation,
+//                                   showHindiTranslation,
+//                                   let hindiText = line.hindiTranslation,
+//                                   !hindiText.isEmpty {
+//                                    Text(hindiText)
+//                                        .font(.footnote)
+//                                        .foregroundColor(.gray)
+//                                        .multilineTextAlignment(.center)
+//                                        .padding(.horizontal)
+//                                }
                             }
                             .padding(.vertical, 4)
                         }

@@ -19,6 +19,9 @@ struct PDFViewerView: View {
     @State private var showingBookmarkList: Bool = false
     @State private var showingAddBookmarkAlert: Bool = false
     @State private var newBookmarkTitle: String = ""
+    @State private var pageSearchText: String = "1"
+    @State private var showInvalidPageAlert: Bool = false
+    @FocusState private var isPageSearchFieldFocused: Bool
 
     var isPad: Bool {
         UIDevice.current.userInterfaceIdiom == .pad
@@ -58,13 +61,28 @@ struct PDFViewerView: View {
                 }
                 .padding(.horizontal, isPad ? 40 : 20)
                 .padding(.vertical, 12)
+
+                HStack(spacing: 10) {
+                    TextField("Page #", text: $pageSearchText)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: isPad ? 180 : 120)
+                        .focused($isPageSearchFieldFocused)
+
+                    Button("Go") {
+                        goToEnteredPage()
+                        isPageSearchFieldFocused = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(totalPages == 0)
+                }
+                .padding(.bottom, 16)
             } else {
                 Text("Unable to load PDF")
                     .foregroundColor(.red)
                     .padding()
             }
         }
-        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 16) {
@@ -88,15 +106,17 @@ struct PDFViewerView: View {
             }
         }
         .onAppear {
+            pageSearchText = "\(currentPage + 1)"
             checkBookmarkStatus()
         }
         .onChange(of: currentPage) {
+            pageSearchText = "\(currentPage + 1)"
             checkBookmarkStatus()
         }
         .sheet(isPresented: $showingBookmarkList, onDismiss: {
             checkBookmarkStatus()
         }) {
-            BookmarkListView { selectedPage in
+            BookmarkListView(granthTitle: title) { selectedPage in
                 navigateToPage(selectedPage)
             }
         }
@@ -115,6 +135,19 @@ struct PDFViewerView: View {
         } message: {
             Text("Enter a title for this bookmark")
         }
+        .alert("Invalid Page Number", isPresented: $showInvalidPageAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Enter a page between 1 and \(max(totalPages, 1)).")
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    isPageSearchFieldFocused = false
+                }
+            }
+        }
     }
 
     // MARK: - Navigation Functions
@@ -127,6 +160,18 @@ struct PDFViewerView: View {
     private func goToNextPage() {
         guard currentPage < totalPages - 1 else { return }
         navigateToPage(currentPage + 1)
+    }
+
+    private func goToEnteredPage() {
+        let trimmed = pageSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let userPage = Int(trimmed),
+              userPage >= 1,
+              userPage <= totalPages else {
+            showInvalidPageAlert = true
+            return
+        }
+
+        navigateToPage(userPage - 1)
     }
 
     private func navigateToPage(_ pageNumber: Int) {
